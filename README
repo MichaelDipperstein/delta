@@ -10,6 +10,10 @@ http://michael.dipperstein.com/delta
 
 FILES
 -----
+adapt.c         - Module that contains rules for increasing/decreasing
+                  code word sizes.
+adapt.h         - Header for Module that contains rules for increasing/
+                  decreasing code word sizes.
 bitfile.c       - Library to allow bitwise reading and writing of files.
 bitfile.h       - Header for bitfile library.
 COPYING         - Rules for copying and distributing GPL software

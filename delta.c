@@ -9,8 +9,11 @@
 ****************************************************************************
 *   UPDATES
 *
-*   $Id: delta.c,v 1.1.1.1 2009/04/17 04:35:52 michael Exp $
+*   $Id: delta.c,v 1.2 2009/05/02 06:14:44 michael Exp $
 *   $Log: delta.c,v $
+*   Revision 1.2  2009/05/02 06:14:44  michael
+*   Refactor for easy changing of the rules for adjusting code size.
+*
 *   Revision 1.1.1.1  2009/04/17 04:35:52  michael
 *   Initial release
 *
@@ -42,14 +45,12 @@
 ***************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+#include "adapt.h"
 #include "bitfile.h"
 
 /***************************************************************************
 *                                CONSTANTS
 ***************************************************************************/
-/* maximum overflows and underflows before code size change */
-#define MAX_OVF 3
-#define MAX_UNF 3
 
 /***************************************************************************
 *                            GLOBAL VARIABLES
@@ -89,9 +90,9 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
     FILE *fpIn;
     bit_file_t *bfpOut;
     int c;
-    unsigned char overflowCount, underflowCount, buffer;
+    unsigned char buffer;
     signed char prev, delta, min, max;
-    
+
     if ((codeSize < 2) || (codeSize > 8))
     {
         /* code size is out of range */
@@ -132,9 +133,8 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
     }
 
     /* initialize data */
+    InitializeAdaptiveData(codeSize);
     MakeRange(&min, &max, codeSize);
-    overflowCount = 0;
-    underflowCount = 0;
 
     /* get first value */
     if ((c = fgetc(fpIn)) != EOF)
@@ -166,19 +166,7 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
             buffer = (unsigned char)min << (8 - codeSize);
             BitFilePutBits(bfpOut, &buffer, codeSize);
             BitFilePutChar(c, bfpOut);
-            overflowCount++;
-
-            if (MAX_OVF < overflowCount)
-            {
-                if (codeSize < 8)
-                {
-                    codeSize++;
-                    MakeRange(&min, &max, codeSize);
-                }
-
-                underflowCount = 0;
-                overflowCount = 0;
-            }
+            codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
         }
         else
         {
@@ -186,35 +174,20 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
             buffer = delta << (8 - codeSize);
             BitFilePutBits(bfpOut, &buffer, codeSize);
 
-            if (overflowCount > 0)
-            {
-                overflowCount--;
-            }
-
             /* check for underflow */
             if ((delta < (max / 2)) && (delta > (min / 2)))
             {
                 /* underflow */
-                underflowCount++;
-
-                if (MAX_UNF < underflowCount)
-                {
-                    if (codeSize > 2)
-                    {
-                        codeSize--;
-                        MakeRange(&min, &max, codeSize);
-                    }
-
-                    underflowCount = 0;
-                    overflowCount = 0;
-                }
-
+                codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
             }
-            else if (underflowCount > 0)
+            else
             {
-                underflowCount--;
+                codeSize = UpdateAdaptiveStatistics(CS_OKAY);
             }
         }
+
+        /* update range in case of code size change */
+        MakeRange(&min, &max, codeSize);
     }
 
     /* indicate end of stream with an overflow and previous value (EOF) */
@@ -251,7 +224,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
     bit_file_t *bfpIn;
     FILE *fpOut;
     int c;
-    unsigned char overflowCount, underflowCount, buffer;
+    unsigned char buffer;
     signed char prev, delta, min, max;
 
     if ((codeSize < 2) || (codeSize > 8))
@@ -293,9 +266,8 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
         return EXIT_FAILURE;
     }
 
+    InitializeAdaptiveData(codeSize);
     MakeRange(&min, &max, codeSize);
-    overflowCount = 0;
-    underflowCount = 0;
 
     /* get first value */
     if ((c = BitFileGetChar(bfpIn)) != EOF)
@@ -339,19 +311,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
 
             fputc(c, fpOut);
             prev = (signed char)c;
-            overflowCount++;
-
-            if (MAX_OVF < overflowCount)
-            {
-                if (codeSize < 8)
-                {
-                    codeSize++;
-                    MakeRange(&min, &max, codeSize);
-                }
-
-                underflowCount = 0;
-                overflowCount = 0;
-            }
+            codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
         }
         else
         {
@@ -359,35 +319,20 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
             delta = (signed char)buffer;
             prev = prev + delta;
             fputc(prev, fpOut);
-    
-            if (overflowCount > 0)
-            {
-                overflowCount--;
-            }
 
             /* check for underflow */
             if ((delta < (max / 2)) && (delta > (min / 2)))
             {
-                underflowCount++;
-
-                if (MAX_UNF < underflowCount)
-                {
-                    /* underflow */
-                    if (codeSize > 2)
-                    {
-                        codeSize--;
-                        MakeRange(&min, &max, codeSize);
-                    }
-
-                    underflowCount = 0;
-                    overflowCount = 0;
-                }
+                codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
             }
-            else if (underflowCount > 0)
+            else
             {
-                underflowCount--;
+                codeSize = UpdateAdaptiveStatistics(CS_OKAY);
             }
         }
+
+        /* update range in case of code size change */
+        MakeRange(&min, &max, codeSize);
     }
 
     BitFileClose(bfpIn);
