@@ -1,0 +1,74 @@
+DESCRIPTION
+-----------
+This archive contains a simple and readable ANSI C implementation of
+adaptive delta coding and decoding.  This implementation is not intended
+to be the best, fastest, smallest, or any other performance related
+adjective.
+
+More information on adaptive delta encoding may be found at:
+http://michael.dipperstein.com/delta
+
+FILES
+-----
+bitfile.c       - Library to allow bitwise reading and writing of files.
+bitfile.h       - Header for bitfile library.
+COPYING         - Rules for copying and distributing GPL software
+COPYING.LESSER  - Rules for copying and distributing LGPL software
+delta.c         - Source for delta library encoding and decoding routines.
+delta.h         - Header containing prototypes for delta library functions.
+Makefile        - makefile for this project (assumes gcc compiler and GNU make)
+optlist.c       - Source code for GetOptlist function and supporting functions
+optlist.h       - Header file to be included by code using the optlist library
+README          - this file
+sample.c        - Demonstration of how to use the delta library functions
+
+BUILDING
+--------
+To build these files with GNU make and gcc, simply enter "make" from the
+command line.  The executable will be named sample (or sample.exe).
+
+USAGE
+-----
+Usage: sample <options>
+
+Options:
+  -c : encode input.
+  -d : decode input.
+  -s : initial codeword size (2 - 8 bits)
+  -i <filename> : Name of input file.
+  -o <filename> : Name of output file.
+  -h | ?  : Print out command line options.
+
+Default: sample -s6 -c -i stdin -o stdout
+
+-c      Compress the specified input file (see -i) using the adaptive delta
+        encoding algorithm.  Results are written to the specified output file
+        (see -o).
+
+-d      Decompress the specified input file (see -i) using the adaptive delta
+        decoding algorithm.  Results are written to the specified output file
+        (see -o).  Only files compressed by this program may be decompressed.
+
+-s [2-8]        The number of bits used by code words at start of compression
+                or decompression.  (default = 6)
+
+-i <filename>   The name of the input file. (default = stdin)
+
+-o <filename>   The name of the output file. (default = stdout)
+                NOTE: Sending compressed output to stdout may produce
+                undesirable results.
+
+HISTORY
+-------
+04/16/09  - Initial Release
+
+TODO
+----
+- Allow encoding of data sizes other than 8 bits.
+- Provide method to link in modules responsible for deciding if code word
+  size should be increased or decreased.
+
+AUTHOR
+------
+Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
+http://michael.dipperstein.com
