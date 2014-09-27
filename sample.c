@@ -7,17 +7,9 @@
 *   Date    : April 16, 2008
 *
 ****************************************************************************
-*   UPDATES
-*
-*   $Id: sample.c,v 1.1.1.1 2009/04/17 04:35:52 michael Exp $
-*   $Log: sample.c,v $
-*   Revision 1.1.1.1  2009/04/17 04:35:52  michael
-*   Initial release
-*
-****************************************************************************
 *
 * SAMPLE: Sample usage of Delta Encoding Library
-* Copyright (C) 2009 by
+* Copyright (C) 2009, 2014 by
 *       Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the delta library.
@@ -68,8 +60,7 @@ typedef enum
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
-char *RemovePath(char *fullPath);
-void ShowUsage(char *progName);
+static void ShowUsage(const char *const progName);
 
 /***************************************************************************
 *                                FUNCTIONS
@@ -88,7 +79,7 @@ void ShowUsage(char *progName);
 ****************************************************************************/
 int main(int argc, char *argv[])
 {
-    char *inFile, *outFile;
+    FILE *inFile, *outFile;
     unsigned char codeSize;
     modes_t mode;
     option_t *optList, *thisOpt;
@@ -122,16 +113,16 @@ int main(int argc, char *argv[])
                 {
                     fprintf(stderr,
                         "Starting code size must be between 2 and 8.\n\n");
-                    ShowUsage(RemovePath(argv[0]));
+                    ShowUsage(FindFileName(argv[0]));
 
                     if (inFile != NULL)
                     {
-                        free(inFile);
+                        fclose(inFile);
                     }
 
                     if (outFile != NULL)
                     {
-                        free(outFile);
+                        fclose(outFile);
                     }
 
                     FreeOptList(optList);
@@ -143,70 +134,62 @@ int main(int argc, char *argv[])
             case 'i':       /* input file name */
                 if (inFile != NULL)
                 {
-                    fprintf(stderr, "Multiple input files not allowed.\n\n");
-                    ShowUsage(RemovePath(argv[0]));
-                    free(inFile);
+                    fprintf(stderr, "Multiple input files not allowed.\n");
+                    fclose(inFile);
 
                     if (outFile != NULL)
                     {
-                        free(outFile);
+                        fclose(outFile);
                     }
 
                     FreeOptList(optList);
-                    return EXIT_FAILURE;
+                    exit(EXIT_FAILURE);
                 }
-                else if ((inFile =
-                    (char *)malloc(strlen(thisOpt->argument) + 1)) == NULL)
+                else if ((inFile = fopen(thisOpt->argument, "rb")) == NULL)
                 {
-                    perror("Memory allocation");
+                    perror("Opening Input File");
 
                     if (outFile != NULL)
                     {
-                        free(outFile);
+                        fclose(outFile);
                     }
 
                     FreeOptList(optList);
-                    return EXIT_FAILURE;
+                    exit(EXIT_FAILURE);
                 }
-
-                strcpy(inFile, thisOpt->argument);
                 break;
 
             case 'o':       /* output file name */
                 if (outFile != NULL)
                 {
-                    fprintf(stderr, "Multiple output files not allowed.\n\n");
-                    ShowUsage(RemovePath(argv[0]));
-                    free(outFile);
+                    fprintf(stderr, "Multiple output files not allowed.\n");
+                    fclose(outFile);
 
                     if (inFile != NULL)
                     {
-                        free(inFile);
+                        fclose(inFile);
                     }
 
                     FreeOptList(optList);
-                    return EXIT_FAILURE;
+                    exit(EXIT_FAILURE);
                 }
-                else if ((outFile =
-                    (char *)malloc(strlen(thisOpt->argument) + 1)) == NULL)
+                else if ((outFile = fopen(thisOpt->argument, "wb")) == NULL)
                 {
-                    perror("Memory allocation");
+                    perror("Opening Output File");
 
                     if (inFile != NULL)
                     {
-                        free(inFile);
+                        fclose(inFile);
                     }
 
                     FreeOptList(optList);
-                    return EXIT_FAILURE;
+                    exit(EXIT_FAILURE);
                 }
-
-                strcpy(outFile, thisOpt->argument);
                 break;
 
             case 'h':
             case '?':
-                ShowUsage(RemovePath(argv[0]));
+                ShowUsage(FindFileName(argv[0]));
                 FreeOptList(optList);
                 return EXIT_SUCCESS;
         }
@@ -216,57 +199,34 @@ int main(int argc, char *argv[])
         thisOpt = optList;
     }
 
+    if (NULL == inFile)
+    {
+        inFile = stdin;
+    }
+
+    if (NULL == outFile)
+    {
+        inFile = stdout;
+    }
+
     if (MODE_ENCODE == mode)
     {
         if(DeltaEncodeFile(inFile, outFile, codeSize) != EXIT_SUCCESS)
         {
-            fprintf(stderr, "Failed to Encode %s\n", inFile);
+            fprintf(stderr, "Failed to Encode File\n");
         }
     }
     else if (MODE_DECODE == mode)
     {
         if(DeltaDecodeFile(inFile, outFile, codeSize) != EXIT_SUCCESS)
         {
-            fprintf(stderr, "Failed to Decode %s\n", inFile);
+            fprintf(stderr, "Failed to Decode File\n");
         }
     }
 
-    free(inFile);
-    free(outFile);
+    fclose(inFile);
+    fclose(outFile);
     return EXIT_SUCCESS;
-}
-
-/****************************************************************************
-*   Function   : RemovePath
-*   Description: This is function accepts a pointer to the name of a file
-*                along with path information and returns a pointer to the
-*                character that is not part of the path.
-*   Parameters : fullPath - pointer to an array of characters containing
-*                           a file name and possible path modifiers.
-*   Effects    : None
-*   Returned   : Returns a pointer to the first character after any path
-*                information.
-****************************************************************************/
-char *RemovePath(char *fullPath)
-{
-    int i;
-    char *start, *tmp;                          /* start of file name */
-    const char delim[3] = {'\\', '/', ':'};     /* path deliminators */
-
-    start = fullPath;
-
-    /* find the first character after all file path delimiters */
-    for (i = 0; i < 3; i++)
-    {
-        tmp = strrchr(start, delim[i]);
-
-        if (tmp != NULL)
-        {
-            start = tmp + 1;
-        }
-    }
-
-    return start;
 }
 
 /****************************************************************************
@@ -278,7 +238,7 @@ char *RemovePath(char *fullPath)
 *   Effects    : Usage instructions are sent to stdout.
 *   Returned   : None
 ****************************************************************************/
-void ShowUsage(char *progName)
+static void ShowUsage(const char *const progName)
 {
     printf("Usage: %s <options>\n\n", progName);
     printf("Options:\n");

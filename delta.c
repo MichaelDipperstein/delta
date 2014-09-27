@@ -7,20 +7,9 @@
 *   Date    : April 16, 2009
 *
 ****************************************************************************
-*   UPDATES
-*
-*   $Id: delta.c,v 1.2 2009/05/02 06:14:44 michael Exp $
-*   $Log: delta.c,v $
-*   Revision 1.2  2009/05/02 06:14:44  michael
-*   Refactor for easy changing of the rules for adjusting code size.
-*
-*   Revision 1.1.1.1  2009/04/17 04:35:52  michael
-*   Initial release
-*
-****************************************************************************
 *
 * Delta: An adaptive delta encoding/decoding library
-* Copyright (C) 2009 by
+* Copyright (C) 2009, 2014 by
 *       Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the Delta library.
@@ -59,7 +48,7 @@
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
-void MakeRange(signed char *min, signed char *max,
+static void MakeRange(signed char *min, signed char *max,
     const unsigned char codeSize);
 
 /***************************************************************************
@@ -84,51 +73,37 @@ void MakeRange(signed char *min, signed char *max,
 *                in the file named with the name provided by inFile.
 *   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
 ***************************************************************************/
-int DeltaEncodeFile(const char *inFile, const char *outFile,
-    unsigned char codeSize)
+int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 {
-    FILE *fpIn;
-    bit_file_t *bfpOut;
+    bit_file_t *bOutFile;
     int c;
     unsigned char buffer;
     signed char prev, delta, min, max;
 
+    /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
     {
         /* code size is out of range */
         return EXIT_FAILURE;
     }
 
-    /* open file to be encoded */
-    if (NULL != inFile)
+    if (NULL == inFile)
     {
-        fpIn = fopen(inFile, "rb");
-    }
-    else
-    {
-        fpIn = stdin;
-    }
-
-    if (NULL == fpIn)
-    {
-        perror(inFile);
         return EXIT_FAILURE;
     }
 
-    /* open output file */
-    if (NULL != outFile)
+    if (NULL == outFile)
     {
-        bfpOut = BitFileOpen(outFile, BF_WRITE);
-    }
-    else
-    {
-        bfpOut = MakeBitFile(stdout, BF_WRITE);
+        return EXIT_FAILURE;
     }
 
-    if (NULL == bfpOut)
+    bOutFile = MakeBitFile(outFile, BF_WRITE);
+
+    if (NULL == bOutFile)
     {
-        perror(outFile);
-        fclose(fpIn);
+        perror("Making Output File a BitFile");
+        fclose(outFile);
+        fclose(inFile);
         return EXIT_FAILURE;
     }
 
@@ -137,20 +112,20 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
     MakeRange(&min, &max, codeSize);
 
     /* get first value */
-    if ((c = fgetc(fpIn)) != EOF)
+    if ((c = fgetc(inFile)) != EOF)
     {
-        BitFilePutChar(c, bfpOut);
+        BitFilePutChar(c, bOutFile);
         prev = c;
     }
     else
     {
         /* empty input file */
-        fclose(fpIn);
-        BitFileClose(bfpOut);
+        fclose(inFile);
+        BitFileClose(bOutFile);
         return EXIT_SUCCESS;
     }
 
-    while ((c = fgetc(fpIn)) != EOF)
+    while ((c = fgetc(inFile)) != EOF)
     {
         if (EOF == c)
         {
@@ -164,15 +139,15 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
         {
             /* overflow write min (right justified) followed by the character */
             buffer = (unsigned char)min << (8 - codeSize);
-            BitFilePutBits(bfpOut, &buffer, codeSize);
-            BitFilePutChar(c, bfpOut);
+            BitFilePutBits(bOutFile, &buffer, codeSize);
+            BitFilePutChar(c, bOutFile);
             codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
         }
         else
         {
             /* not an overflow.  right justify and output. */
             buffer = delta << (8 - codeSize);
-            BitFilePutBits(bfpOut, &buffer, codeSize);
+            BitFilePutBits(bOutFile, &buffer, codeSize);
 
             /* check for underflow */
             if ((delta < (max / 2)) && (delta > (min / 2)))
@@ -192,11 +167,10 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
 
     /* indicate end of stream with an overflow and previous value (EOF) */
     buffer = (unsigned char)min << (8 - codeSize);
-    BitFilePutBits(bfpOut, &buffer, codeSize);
-    BitFilePutChar(prev, bfpOut);
+    BitFilePutBits(bOutFile, &buffer, codeSize);
+    BitFilePutChar(prev, bOutFile);
 
-    fclose(fpIn);
-    BitFileClose(bfpOut);
+    outFile = BitFileToFILE(bOutFile);          /* make file normal again */
     return EXIT_SUCCESS;
 }
 
@@ -218,51 +192,37 @@ int DeltaEncodeFile(const char *inFile, const char *outFile,
 *                in the file named with the name provided by inFile.
 *   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
 ***************************************************************************/
-int DeltaDecodeFile(const char *inFile, const char *outFile,
-    unsigned char codeSize)
+int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 {
-    bit_file_t *bfpIn;
-    FILE *fpOut;
+    bit_file_t *bInFile;
     int c;
     unsigned char buffer;
     signed char prev, delta, min, max;
 
+    /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
     {
         /* code size is out of range */
         return EXIT_FAILURE;
     }
 
-    /* open file to be decoded */
-    if (NULL != inFile)
+    if (NULL == inFile)
     {
-        bfpIn = BitFileOpen(inFile, BF_READ);
-    }
-    else
-    {
-        bfpIn = MakeBitFile(stdin, BF_READ);
-    }
-
-    if (NULL == bfpIn)
-    {
-        perror(inFile);
         return EXIT_FAILURE;
     }
 
-    /* open output file */
-    if (NULL != outFile)
+    if (NULL == outFile)
     {
-        fpOut = fopen(outFile, "wb");
-    }
-    else
-    {
-        fpOut = stdout;
+        return EXIT_FAILURE;
     }
 
-    if (NULL == fpOut)
+    bInFile = MakeBitFile(inFile, BF_WRITE);
+
+    if (NULL == bInFile)
     {
-        perror(outFile);
-        BitFileClose(bfpIn);
+        perror("Making Input File a BitFile");
+        fclose(outFile);
+        fclose(inFile);
         return EXIT_FAILURE;
     }
 
@@ -270,20 +230,20 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
     MakeRange(&min, &max, codeSize);
 
     /* get first value */
-    if ((c = BitFileGetChar(bfpIn)) != EOF)
+    if ((c = BitFileGetChar(bInFile)) != EOF)
     {
-        fputc(c, fpOut);
+        fputc(c, outFile);
         prev = (signed char)c;
     }
     else
     {
         /* empty input file */
-        BitFileClose(bfpIn);
-        fclose(fpOut);
+        BitFileClose(bInFile);
+        fclose(outFile);
         return EXIT_SUCCESS;
     }
 
-    while (BitFileGetBits(bfpIn, &buffer, codeSize) != EOF)
+    while (BitFileGetBits(bInFile, &buffer, codeSize) != EOF)
     {
         /* right justify buffer */
         if (buffer & 0x80)
@@ -301,7 +261,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
         if ((signed char)buffer == min)
         {
             /* overflow character */
-            c = BitFileGetChar(bfpIn);
+            c = BitFileGetChar(bInFile);
 
             if ((EOF == c) || (prev == c))
             {
@@ -309,7 +269,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
                 break;
             }
 
-            fputc(c, fpOut);
+            fputc(c, outFile);
             prev = (signed char)c;
             codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
         }
@@ -318,7 +278,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
             /* not an overflow */
             delta = (signed char)buffer;
             prev = prev + delta;
-            fputc(prev, fpOut);
+            fputc(prev, outFile);
 
             /* check for underflow */
             if ((delta < (max / 2)) && (delta > (min / 2)))
@@ -335,8 +295,7 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
         MakeRange(&min, &max, codeSize);
     }
 
-    BitFileClose(bfpIn);
-    fclose(fpOut);
+    inFile = BitFileToFILE(bInFile);            /* make file normal again */
     return EXIT_SUCCESS;
 }
 
@@ -352,7 +311,8 @@ int DeltaDecodeFile(const char *inFile, const char *outFile,
 *                values for delta codes of codeSize bits.
 *   Returned   : None
 ***************************************************************************/
-void MakeRange(signed char *min, signed char *max, const unsigned char codeSize)
+static void MakeRange(signed char *min, signed char *max,
+    const unsigned char codeSize)
 {
     *min = (signed char)(0 - (1 << (codeSize - 1)));    /* -2^(n - 1) */
     *max = (signed char)((1 << (codeSize - 1)) - 1);    /* 2^(n  - 1) - 1 */

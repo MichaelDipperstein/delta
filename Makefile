@@ -1,14 +1,5 @@
 ############################################################################
 # Makefile for delta encode/decode library and sample program
-#
-# $Id: Makefile,v 1.2 2009/05/02 06:14:44 michael Exp $
-# $Log: Makefile,v $
-# Revision 1.2  2009/05/02 06:14:44  michael
-# Refactor for easy changing of the rules for adjusting code size.
-#
-# Revision 1.1.1.1  2009/04/17 04:35:52  michael
-# Initial release
-#
 ############################################################################
 CC = gcc
 LD = gcc
@@ -28,7 +19,7 @@ ifeq ($(OS),Windows)
     DEL = del
 else    #assume Linux/Unix
     EXE =
-    DEL = rm
+    DEL = rm -f
 endif
 
 all:        sample$(EXE)

@@ -8,17 +8,9 @@
 *   Date    : April 16, 2009
 *
 ****************************************************************************
-*   UPDATES
-*
-*   $Id: delta.h,v 1.1.1.1 2009/04/17 04:35:52 michael Exp $
-*   $Log: delta.h,v $
-*   Revision 1.1.1.1  2009/04/17 04:35:52  michael
-*   Initial release
-*
-****************************************************************************
 *
 * Delta: An adaptive delta encoding/decoding library
-* Copyright (C) 2009 by
+* Copyright (C) 2009, 2014 by
 *       Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the Delta library.
@@ -56,11 +48,9 @@
 *                               PROTOTYPES
 ***************************************************************************/
  /* encode inFile */
-int DeltaEncodeFile(const char *inFile, const char *outFile,
-    unsigned char codeSize);
+int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize);
 
 /* decode inFile*/
-int DeltaDecodeFile(const char *inFile, const char *outFile,
-    unsigned char codeSize);
+int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize);
 
 #endif  /* ndef _DELTA_H_ */

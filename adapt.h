@@ -8,17 +8,9 @@
 *   Date    : April 29, 2009
 *
 ****************************************************************************
-*   UPDATES
-*
-*   $Id: adapt.h,v 1.1 2009/05/02 06:14:31 michael Exp $
-*   $Log: adapt.h,v $
-*   Revision 1.1  2009/05/02 06:14:31  michael
-*   Refactor for easy changing of the rules for adjusting code size.
-*
-****************************************************************************
 *
 * Delta: An adaptive delta encoding/decoding library
-* Copyright (C) 2009 by
+* Copyright (C) 2009, 2014 by
 *       Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the Delta library.
