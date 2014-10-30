@@ -42,14 +42,22 @@
 ***************************************************************************/
 
 /***************************************************************************
+*                            TYPE DEFINITIONS
+***************************************************************************/
+typedef struct
+{
+    signed char min;
+    signed char max;
+} range_t;
+
+/***************************************************************************
 *                            GLOBAL VARIABLES
 **************************************************************************/
 
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
-static void MakeRange(signed char *min, signed char *max,
-    const unsigned char codeSize);
+static range_t MakeRange(const unsigned char codeSize);
 
 /***************************************************************************
 *                                FUNCTIONS
@@ -75,7 +83,8 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     bit_file_t *bOutFile;
     int c;
     unsigned char buffer;
-    signed char prev, delta, min, max;
+    signed char prev, delta;
+    range_t range;
 
     /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
@@ -106,7 +115,7 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 
     /* initialize data */
     InitializeAdaptiveData(codeSize);
-    MakeRange(&min, &max, codeSize);
+    range = MakeRange(codeSize);
 
     /* get first value */
     if ((c = fgetc(inFile)) != EOF)
@@ -132,10 +141,10 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         delta = (signed char)c - prev;
         prev = c;
 
-        if ((delta > max) || (delta <= min))
+        if ((delta > range.max) || (delta <= range.min))
         {
             /* overflow write min (right justified) followed by the character */
-            buffer = (unsigned char)min << (8 - codeSize);
+            buffer = (unsigned char)range.min << (8 - codeSize);
             BitFilePutBits(bOutFile, &buffer, codeSize);
             BitFilePutChar(c, bOutFile);
             codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
@@ -143,11 +152,11 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         else
         {
             /* not an overflow.  right justify and output. */
-            buffer = delta << (8 - codeSize);
+            buffer = (unsigned char)delta << (8 - codeSize);
             BitFilePutBits(bOutFile, &buffer, codeSize);
 
             /* check for underflow */
-            if ((delta < (max / 2)) && (delta > (min / 2)))
+            if ((delta <= (range.max / 2)) && (delta > (range.min / 2)))
             {
                 /* underflow */
                 codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
@@ -159,11 +168,11 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         }
 
         /* update range in case of code size change */
-        MakeRange(&min, &max, codeSize);
+        range = MakeRange(codeSize);
     }
 
     /* indicate end of stream with an overflow and previous value (EOF) */
-    buffer = (unsigned char)min << (8 - codeSize);
+    buffer = (unsigned char)range.min << (8 - codeSize);
     BitFilePutBits(bOutFile, &buffer, codeSize);
     BitFilePutChar(prev, bOutFile);
 
@@ -192,7 +201,8 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     bit_file_t *bInFile;
     int c;
     unsigned char buffer;
-    signed char prev, delta, min, max;
+    signed char prev, delta;
+    range_t range;
 
     /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
@@ -222,7 +232,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     }
 
     InitializeAdaptiveData(codeSize);
-    MakeRange(&min, &max, codeSize);
+    range = MakeRange(codeSize);
 
     /* get first value */
     if ((c = BitFileGetChar(bInFile)) != EOF)
@@ -253,7 +263,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
             buffer >>= (8 - codeSize);
         }
 
-        if ((signed char)buffer == min)
+        if ((signed char)buffer == range.min)
         {
             /* overflow character */
             c = BitFileGetChar(bInFile);
@@ -276,7 +286,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
             fputc(prev, outFile);
 
             /* check for underflow */
-            if ((delta < (max / 2)) && (delta > (min / 2)))
+            if ((delta <= (range.max / 2)) && (delta > (range.min / 2)))
             {
                 codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
             }
@@ -287,7 +297,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         }
 
         /* update range in case of code size change */
-        MakeRange(&min, &max, codeSize);
+        range = MakeRange(codeSize);
     }
 
     inFile = BitFileToFILE(bInFile);            /* make file normal again */
@@ -298,17 +308,17 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 *   Function   : MakeRange
 *   Description: This function computes the minimum and maximum range
 *                limits for a codeSize bit delta encoded symbol.
-*   Parameters : min - pointer to variable to contain the minimum value.
-*                max - pointer to variable to contain the maximum value.
-*                codeSize - The number of bits used for code words at the
+*   Parameters : codeSize - The number of bits used for code words at the
 *                           start of coding.
-*   Effects    : min and max will be assigned the minimum and maximum data
-*                values for delta codes of codeSize bits.
-*   Returned   : None
+*   Effects    : None
+*   Returned   : Range minimum and maximum data values for delta codes of
+*                codeSize bits.
 ***************************************************************************/
-static void MakeRange(signed char *min, signed char *max,
-    const unsigned char codeSize)
+static range_t MakeRange(const unsigned char codeSize)
 {
-    *min = (signed char)(0 - (1 << (codeSize - 1)));    /* -2^(n - 1) */
-    *max = (signed char)((1 << (codeSize - 1)) - 1);    /* 2^(n  - 1) - 1 */
+    range_t range;
+    range.min = (signed char)(0 - (1 << (codeSize - 1)));   /* -2^(n - 1) */
+    range.max = (signed char)((1 << (codeSize - 1)) - 1);   /* 2^(n  - 1) - 1 */
+
+    return range;
 }

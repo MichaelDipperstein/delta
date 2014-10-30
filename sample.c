@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 
     if (NULL == outFile)
     {
-        inFile = stdout;
+        outFile = stdout;
     }
 
     if (MODE_ENCODE == mode)
