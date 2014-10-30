@@ -58,19 +58,16 @@ static void MakeRange(signed char *min, signed char *max,
 /***************************************************************************
 *   Function   : DeltaEncodeFile
 *   Description: This function reads from the specified input stream and
-*                writes a adaptive delta encoded version to the specified
-*                output stream.  If input/output stream names are NULL,
-*                stdin/stdout will be used.
-*   Parameters : inFile - Pointer to a null terminated string containing
-*                         the name of the file to be encoded.
-*                outFile - Pointer to a null terminated string containing
-*                          the name of the file where the encoded output
-*                          should be written.
+*                writes an adaptive delta encoded version to the specified
+*                output stream.  If input/output streams are NULL, this
+*                function exits with a failure.
+*   Parameters : inFile - Pointer to a file stream to be encoded.
+*                outFile - Pointer to a file where the encoded output should
+*                          be written.
 *                codeSize - The number of bits used for code words at the
 *                           start of coding.
-*   Effects    : A file named with the name provided by outFile will be
-*                created and contain the delta encoding of the data
-*                in the file named with the name provided by inFile.
+*   Effects    : Data from the inFile stream will be encoded and written to
+*                the outFile stream.
 *   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
 ***************************************************************************/
 int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
@@ -176,20 +173,18 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 
 /***************************************************************************
 *   Function   : DeltaDecodeFile
-*   Description: This function reads an a adaptive delta encoded file from
-*                the specified input stream and writes decoded version to
-*                the specified output stream.  If input/output stream names
-*                are NULL, stdin/stdout will be used.
-*   Parameters : inFile - Pointer to a null terminated string containing
-*                         the name of the file to be decoded.
-*                outFile - Pointer to a null terminated string containing
-*                          the name of the file where the decoded output
-*                          should be written.
+*   Description: This function reads from the specified adaptive delta
+*                encoded input stream and writes a decoded version to the
+*                specified output stream.  If input/output streams are NULL,
+*                this function exits with a failure.
+*   Parameters : inFile - Pointer to the adaptive delta encoded file stream
+*                         to be encoded.
+*                outFile - Pointer to a file where the decoded output should
+*                          be written.
 *                codeSize - The number of bits used for code words at the
 *                           start of coding.
-*   Effects    : A file named with the name provided by outFile will be
-*                created and contain the delta decoding of the data
-*                in the file named with the name provided by inFile.
+*   Effects    : Data from the inFile stream will be decoded and written to
+*                the outFile stream.
 *   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
 ***************************************************************************/
 int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
