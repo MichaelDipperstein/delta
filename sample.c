@@ -211,14 +211,14 @@ int main(int argc, char *argv[])
 
     if (MODE_ENCODE == mode)
     {
-        if(DeltaEncodeFile(inFile, outFile, codeSize) != EXIT_SUCCESS)
+        if(-1 == DeltaEncodeFile(inFile, outFile, codeSize))
         {
             fprintf(stderr, "Failed to Encode File\n");
         }
     }
     else if (MODE_DECODE == mode)
     {
-        if(DeltaDecodeFile(inFile, outFile, codeSize) != EXIT_SUCCESS)
+        if(-1 == DeltaDecodeFile(inFile, outFile, codeSize))
         {
             fprintf(stderr, "Failed to Decode File\n");
         }

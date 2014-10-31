@@ -33,7 +33,7 @@
 *                             INCLUDED FILES
 ***************************************************************************/
 #include <stdio.h>
-#include <stdlib.h>
+#include <errno.h>
 #include "adapt.h"
 #include "bitfile.h"
 
@@ -76,7 +76,8 @@ static range_t MakeRange(const unsigned char codeSize);
 *                           start of coding.
 *   Effects    : Data from the inFile stream will be encoded and written to
 *                the outFile stream.
-*   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
+*   Returned   : 0 for success, -1 for failure.  errno will be set in the
+*                event of a failure.
 ***************************************************************************/
 int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 {
@@ -85,22 +86,26 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     unsigned char buffer;
     signed char prev, delta;
     range_t range;
+    adaptive_data_t *data;
 
     /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
     {
         /* code size is out of range */
-        return EXIT_FAILURE;
+        errno = EINVAL;
+        return -1;
     }
 
     if (NULL == inFile)
     {
-        return EXIT_FAILURE;
+        errno = ENOENT;
+        return -1;
     }
 
     if (NULL == outFile)
     {
-        return EXIT_FAILURE;
+        errno = ENOENT;
+        return -1;
     }
 
     bOutFile = MakeBitFile(outFile, BF_WRITE);
@@ -110,16 +115,22 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         perror("Making Output File a BitFile");
         fclose(outFile);
         fclose(inFile);
-        return EXIT_FAILURE;
+        return -1;
     }
-
-    /* initialize data */
-    InitializeAdaptiveData(codeSize);
-    range = MakeRange(codeSize);
 
     /* get first value */
     if ((c = fgetc(inFile)) != EOF)
     {
+        /* initialize program data */
+        if (NULL == (data = CreateAdaptiveData(codeSize)))
+        {
+            perror("Creating Data Structures");
+            fclose(outFile);
+            fclose(inFile);
+            return -1;
+        }
+
+        range = MakeRange(codeSize);
         BitFilePutChar(c, bOutFile);
         prev = c;
     }
@@ -128,7 +139,7 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         /* empty input file */
         fclose(inFile);
         BitFileClose(bOutFile);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     while ((c = fgetc(inFile)) != EOF)
@@ -147,7 +158,7 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
             buffer = (unsigned char)range.min << (8 - codeSize);
             BitFilePutBits(bOutFile, &buffer, codeSize);
             BitFilePutChar(c, bOutFile);
-            codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
+            codeSize = UpdateAdaptiveStatistics(data, CS_OVERFLOW);
         }
         else
         {
@@ -159,11 +170,11 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
             if ((delta <= (range.max / 2)) && (delta > (range.min / 2)))
             {
                 /* underflow */
-                codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
+                codeSize = UpdateAdaptiveStatistics(data, CS_UNDERFLOW);
             }
             else
             {
-                codeSize = UpdateAdaptiveStatistics(CS_OKAY);
+                codeSize = UpdateAdaptiveStatistics(data, CS_OKAY);
             }
         }
 
@@ -177,7 +188,8 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     BitFilePutChar(prev, bOutFile);
 
     outFile = BitFileToFILE(bOutFile);          /* make file normal again */
-    return EXIT_SUCCESS;
+    FreeAdaptiveData(data);
+    return 0;
 }
 
 /***************************************************************************
@@ -194,7 +206,8 @@ int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 *                           start of coding.
 *   Effects    : Data from the inFile stream will be decoded and written to
 *                the outFile stream.
-*   Returned   : EXIT_SUCCESS for success otherwise EXIT_FAILURE.
+*   Returned   : 0 for success, -1 for failure.  errno will be set in the
+*                event of a failure.
 ***************************************************************************/
 int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 {
@@ -203,22 +216,26 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     unsigned char buffer;
     signed char prev, delta;
     range_t range;
+    adaptive_data_t *data;
 
     /* verify parameters */
     if ((codeSize < 2) || (codeSize > 8))
     {
         /* code size is out of range */
-        return EXIT_FAILURE;
+        errno = EINVAL;
+        return -1;
     }
 
     if (NULL == inFile)
     {
-        return EXIT_FAILURE;
+        errno = ENOENT;
+        return -1;
     }
 
     if (NULL == outFile)
     {
-        return EXIT_FAILURE;
+        errno = ENOENT;
+        return -1;
     }
 
     bInFile = MakeBitFile(inFile, BF_WRITE);
@@ -228,15 +245,22 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         perror("Making Input File a BitFile");
         fclose(outFile);
         fclose(inFile);
-        return EXIT_FAILURE;
+        return -1;
     }
-
-    InitializeAdaptiveData(codeSize);
-    range = MakeRange(codeSize);
 
     /* get first value */
     if ((c = BitFileGetChar(bInFile)) != EOF)
     {
+        /* initialize program data */
+        if (NULL == (data = CreateAdaptiveData(codeSize)))
+        {
+            perror("Creating Data Structures");
+            fclose(outFile);
+            fclose(inFile);
+            return -1;
+        }
+
+        range = MakeRange(codeSize);
         fputc(c, outFile);
         prev = (signed char)c;
     }
@@ -245,7 +269,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
         /* empty input file */
         BitFileClose(bInFile);
         fclose(outFile);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     while (BitFileGetBits(bInFile, &buffer, codeSize) != EOF)
@@ -276,7 +300,7 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
 
             fputc(c, outFile);
             prev = (signed char)c;
-            codeSize = UpdateAdaptiveStatistics(CS_OVERFLOW);
+            codeSize = UpdateAdaptiveStatistics(data, CS_OVERFLOW);
         }
         else
         {
@@ -288,11 +312,11 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
             /* check for underflow */
             if ((delta <= (range.max / 2)) && (delta > (range.min / 2)))
             {
-                codeSize = UpdateAdaptiveStatistics(CS_UNDERFLOW);
+                codeSize = UpdateAdaptiveStatistics(data, CS_UNDERFLOW);
             }
             else
             {
-                codeSize = UpdateAdaptiveStatistics(CS_OKAY);
+                codeSize = UpdateAdaptiveStatistics(data, CS_OKAY);
             }
         }
 
@@ -301,7 +325,8 @@ int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize)
     }
 
     inFile = BitFileToFILE(bInFile);            /* make file normal again */
-    return EXIT_SUCCESS;
+    FreeAdaptiveData(data);
+    return 0;
 }
 
 /***************************************************************************

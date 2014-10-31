@@ -47,13 +47,18 @@ typedef enum
     CS_UNDERFLOW
 } code_word_stat_t;
 
+#ifndef _ADAPT_C_
+typedef struct adaptive_data_t adaptive_data_t;
+
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
-/* initializes adaptive code size computations */
-void InitializeAdaptiveData(const unsigned char codeSize);
+/* create and free data structures used for adaptive code size computations */
+adaptive_data_t* CreateAdaptiveData(const unsigned char codeSize);
+void FreeAdaptiveData(adaptive_data_t *data);
 
 /* returns code size for next code word based on fit of current code word */
-unsigned char UpdateAdaptiveStatistics(const code_word_stat_t stat);
-
+unsigned char UpdateAdaptiveStatistics(adaptive_data_t *data,
+    const code_word_stat_t stat);
+#endif  /* ndef _ADAPT_C_ */
 #endif  /* ndef _ADAPT_H_ */

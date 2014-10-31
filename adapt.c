@@ -32,9 +32,12 @@
 *
 ***************************************************************************/
 
+#define _ADAPT_C_
+
 /***************************************************************************
 *                             INCLUDED FILES
 ***************************************************************************/
+#include <stdlib.h>
 #include "adapt.h"
 
 /***************************************************************************
@@ -47,17 +50,13 @@
 /***************************************************************************
 *                            TYPE DEFINITIONS
 ***************************************************************************/
-typedef struct
+
+typedef struct adaptive_data_t
 {
     unsigned char codeSize;
     unsigned char overflowCount;
     unsigned char underflowCount;
 } adaptive_data_t;
-
-/***************************************************************************
-*                            GLOBAL VARIABLES
-**************************************************************************/
-static adaptive_data_t adaptive;        /* adaptive code size data */
 
 /***************************************************************************
 *                               PROTOTYPES
@@ -68,87 +67,118 @@ static adaptive_data_t adaptive;        /* adaptive code size data */
 ***************************************************************************/
 
 /***************************************************************************
-*   Function   : InitializeAdaptiveData
-*   Description: This function initializes the static data used to track
-*                encoding/decoding statistics and detertime how the code
+*   Function   : CreateAdaptiveData
+*   Description: This function creates the data structure used to track
+*                encoding/decoding statistics and determine how the code
 *                word size should be adapted.
 *   Parameters : codeSize - The number of bits used for code words at the
 *                           start of coding.
-*   Effects    : The static data used to track encoding/decoding statistics
-*                is initialized.
+*   Effects    : The data structure used to track encoding/decoding
+*                statistics is created on the heap.
+*   Returned   : A pointer to created data structure on success, otherwise
+*                NULL.
+***************************************************************************/
+adaptive_data_t* CreateAdaptiveData(const unsigned char codeSize)
+{
+    adaptive_data_t *data;
+
+    data = malloc(sizeof(adaptive_data_t));
+
+    if (NULL != data)
+    {
+        data->codeSize = codeSize;
+        data->overflowCount = 0;
+        data->underflowCount = 0;
+    }
+
+    return data;
+}
+
+/***************************************************************************
+*   Function   : FreeAdaptiveData
+*   Description: This function frees the data structure used to track
+*                encoding/decoding statistics and determine how the code
+*                word size should be adapted.
+*   Parameters : data - a pointer to the data structure to be freed.
+*   Effects    : The data structure used to track encoding/decoding
+*                statistics is created on the heap.
 *   Returned   : None
 ***************************************************************************/
-void InitializeAdaptiveData(const unsigned char codeSize)
+void FreeAdaptiveData(adaptive_data_t *data)
 {
-    adaptive.codeSize = codeSize;
-    adaptive.overflowCount = 0;
-    adaptive.underflowCount = 0;
+    if (NULL != data)
+    {
+        free(data);
+    }
 }
 
 /***************************************************************************
 *   Function   : UpdateAdaptiveStatistics
-*   Description: This function initializes the static data used to track
-*                encoding/decoding statistics and detertime how the code
-*                word size should be adapted.
-*   Parameters : stat - an indication of overflow, underflow, or neither
+*   Description: This function updates the data structure used to track
+*                encoding/decoding statistics and determines the code
+*                word size to be used.
+*   Parameters : data - pointer to the data structure that is used to
+*                       determine the code word size.
+*                stat - an indication of overflow, underflow, or neither
 *                       used to determine the size of the next code word.
 *   Effects    : Statistical counters are updated and a new code word
 *                length may be determined.
 *   Returned   : The number of bits to be used for the next code word.
 ***************************************************************************/
-unsigned char UpdateAdaptiveStatistics(const code_word_stat_t stat)
+unsigned char UpdateAdaptiveStatistics(adaptive_data_t *data,
+    const code_word_stat_t stat)
 {
     switch(stat)
     {
         case CS_OKAY:
-            if (adaptive.overflowCount > 0)
+            if (data->overflowCount > 0)
             {
-                adaptive.overflowCount--;
+                data->overflowCount--;
             }
             
-            if (adaptive.underflowCount > 0)
+            if (data->underflowCount > 0)
             {
-                adaptive.underflowCount--;
+                data->underflowCount--;
             }
             break;
 
         case CS_OVERFLOW:
-            if (adaptive.underflowCount > 0)
+            if (data->underflowCount > 0)
             {
-                adaptive.underflowCount--;
+                data->underflowCount--;
             }
 
-            adaptive.overflowCount++;
+            data->overflowCount++;
 
-            if (MAX_OVF < adaptive.overflowCount)
+            if (MAX_OVF < data->overflowCount)
             {
-                if (adaptive.codeSize < 8)
+                if (data->codeSize < 8)
                 {
-                    adaptive.codeSize++;
+                    data->codeSize++;
                 }
 
-                adaptive.underflowCount = 0;
-                adaptive.overflowCount = 0;
+                data->underflowCount = 0;
+                data->overflowCount = 0;
             }
             break;
 
         case CS_UNDERFLOW:
-            if (adaptive.overflowCount > 0)
+            if (data->overflowCount > 0)
             {
-                adaptive.overflowCount--;
+                data->overflowCount--;
             }
 
-            adaptive.underflowCount++;
+            data->underflowCount++;
 
-            if (MAX_UNF < adaptive.underflowCount)
+            if (MAX_UNF < data->underflowCount)
             {
-                if (adaptive.codeSize > 2)
+                if (data->codeSize > 2)
                 {
-                    adaptive.codeSize--;
+                    data->codeSize--;
                 }
 
-                adaptive.underflowCount = 0;
-                adaptive.overflowCount = 0;
+                data->underflowCount = 0;
+                data->overflowCount = 0;
             }
             break;
             
@@ -156,5 +186,5 @@ unsigned char UpdateAdaptiveStatistics(const code_word_stat_t stat)
             break;
     }
 
-    return adaptive.codeSize;
+    return data->codeSize;
 }
