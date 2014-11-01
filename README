@@ -61,10 +61,47 @@ Default: sample -s6 -c -i stdin -o stdout
 -o <filename>   The name of the output file. (default = stdout)
                 NOTE: Sending compressed output to stdout may produce
                 undesirable results.
+LIBRARY API
+-----------
+Encoding Data:
+int DeltaEncodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize);
+inFile
+    The file stream to be encoded.  It must be opened.
+    NULL pointers will return an error.
+outFile
+    The file stream receiving the encoded results.  It must be opened as binary.
+    NULL pointers will return an error.
+codeSize
+    The number of bits in initial code words.  Valid values are 2 - 8 inclusive.
+    The code word size will be adjusted by the adaptive code word length module.
+Return Value
+    Zero for success, -1 for failure.  Error type is contained in errno.
+
+Decoding Data:
+int DeltaDecodeFile(FILE *inFile, FILE *outFile, unsigned char codeSize);
+inFile
+    The file stream to be decoded.  It must be opened as binary.
+    NULL pointers will return an error.
+outFile
+    The file stream receiving the decoded results.  It must be opened.
+    NULL pointers will return an error.
+codeSize
+    The number of bits in initial code words.  Valid values are 2 - 8 inclusive.
+    The code word size will be adjusted by the adaptive code word length module.
+Return Value
+    Zero for success, -1 for failure.  Error type is contained in errno.
 
 HISTORY
 -------
 04/16/09  - Initial Release
+10/16/14  - Changed the API so that encode and decode routines accept opened
+            file streams instead of file names.
+          - Corrected maximum underflow value.
+          - Made adaptive code word length module (adapt) reentrant.  Now caller
+            must use helper function to allocate and free data structures.
+          - Upgrade to latest bitfile and oplist Libraries
+          - Tighter adherence to Michael Barr's "Top 10 Bug-Killing Coding
+            Standard Rules" (http://www.barrgroup.com/webinars/10rules).
 
 TODO
 ----
