@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "adapt.h"
-#include "bitfile.h"
+#include "bitfile/bitfile.h"
 
 /***************************************************************************
 *                                CONSTANTS
