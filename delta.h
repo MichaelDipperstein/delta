@@ -11,7 +11,7 @@
 *
 * Delta: An adaptive delta encoding/decoding library
 * Copyright (C) 2009, 2014 by
-*       Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
+*       Michael Dipperstein (mdipperstein@gmail.com)
 *
 * This file is part of the Delta library.
 *
